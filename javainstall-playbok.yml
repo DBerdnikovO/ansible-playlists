@@ -1,0 +1,60 @@
+---
+# tasks file for roles/rhel_install_java
+- name: Install Java, mySql-server
+  hosts: linux1
+  become: yes
+  
+  tasks:
+  - include_vars: javavar.yml
+
+  # Создадим папку для дистрибутивов:
+  - name: java | create java dst directory
+    file:
+     path: "{{ java_dst_path }}"
+     state: directory
+     recurse: yes
+     owner: root
+     group: root
+     mode: 0755
+
+# Скачиваем дистрибутив jdk:
+  - name: java | download java
+    get_url:
+     url: "{{ download_url }}"
+     dest: "{{ java_dst_path }}"
+     tmp_dest: "{{ java_dst_path }}"
+     validate_certs: no
+     owner: root
+     group: root
+     mode: 0744
+     force: yes
+    ignore_errors: True
+
+# Находим скачанный jdk в папке дистрибутивов и заносим имя файла в переменную:
+  - name: java | register java gz
+    find:
+     paths: "{{ java_dst_path }}"
+     patterns: "*.gz"
+    register: java_gz
+
+# Проверим значение переменной:
+  - debug: msg={{ java_gz.files.0.path }}
+
+# Распаковываем архив
+  - name: java | unwrap java gz
+    become: true
+    ansible.builtin.unarchive:
+     src: "{{ java_gz.files.0.path  }}"
+     dest: "{{ java_dst_path }}"
+     remote_src: yes
+    # register: archive_contents
+
+# Удаляем архив 
+  - name: Удаление архива
+    ansible.builtin.file:
+      path: "{{ java_gz.files.0.path  }}"
+      state: absent
+  
+  - name: Add Java alternative
+    command: update-alternatives --install /usr/bin/java java /opt/dst/java/jdk-17.0.8+7/bin/java 1
+    become: true
